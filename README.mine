@@ -1,0 +1,51 @@
+Step-by-Step Deployment Process
+This document provides a step-by-step guide to set up a CI/CD pipeline using Jenkins and deploy the OpenSupports application to development, staging, and production environments on AWS using CloudFormation.
+
+Prerequisites
+Before you start, ensure the following:
+
+Jenkins is installed and running.
+AWS CLI is installed on the Jenkins server and properly configured with credentials.
+AWS Access Key and Secret Key are stored in Jenkins as credentials.
+CloudFormation templates for deploying EC2, RDS, S3, VPC, and other infrastructure components are ready.
+Step 1: Configure Jenkins for CI/CD
+1.1 Install Jenkins Plugins
+Install the following plugins in Jenkins:
+
+Pipeline Plugin: For running Jenkins pipelines.
+Git Plugin: For integrating with GitHub.
+AWS CLI Plugin (optional, AWS CLI can also be manually installed on the server).
+1.2 Configure AWS Credentials in Jenkins
+In Jenkins, navigate to Manage Jenkins > Manage Credentials.
+Add AWS Access Key ID and AWS Secret Access Key as credentials.
+Kind: AWS Credentials or Secret Text
+ID: aws-access-key-id and aws-secret-access-key
+Step 2: Create Jenkins Pipeline
+2.1 Create a New Jenkins Pipeline Job
+In Jenkins, click on New Item.
+Select Pipeline and name it OpenSupports-CI-CD.
+Under the Pipeline section, select Pipeline script from SCM.
+Select Git as the SCM and enter your repository URL.
+Add any required credentials for accessing the Git repository.
+2.2 Create a Jenkinsfile
+In the root of your GitHub repository, create a file named Jenkinsfile.
+Step 3: Set Up AWS CloudFormation Templates
+3.1 Prepare CloudFormation Templates
+Make sure you have a CloudFormation template ready for deploying the infrastructure components like EC2 instances, RDS, S3, VPC, and security groups. Store the cloudformation.yaml in your repository.
+
+3.2 Deploy Infrastructure Using CloudFormation
+The Jenkins pipeline will automatically deploy the infrastructure using the aws cloudformation deploy command.
+Modify the parameters (like Environment, KeyName, and DBPassword) for different environments (development, staging, production) in the CloudFormation template.
+Step 4: Trigger the Jenkins Pipeline
+After setting up the Jenkinsfile and configuring Jenkins, push the changes to your GitHub repository.
+Jenkins will automatically trigger the pipeline and deploy the application to the development environment.
+After successful deployment to development, the pipeline will automatically promote the application to staging and finally to production.
+Step 5: Monitoring and Testing
+Jenkins will run health checks after each deployment (for development, staging, and production) to ensure the application is working as expected.
+If any tests fail, the pipeline will stop, and you will need to address the issue before promotion.
+Step 6: Promoting the Application
+Once the application is successfully tested in the development environment, it will be automatically promoted to the staging environment.
+After verifying functionality in staging, the application will be promoted to production.
+Step 7: Post-Deployment
+If the deployment is successful, Jenkins will display a success message.
+If the deployment fails, Jenkins will display an error message, and you can review the logs in Jenkins for more details.

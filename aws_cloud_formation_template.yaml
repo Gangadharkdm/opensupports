@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to provision EC2, RDS, S3, VPC, Security Groups, and CloudWatch with parameters for multiple environments.
+
+Parameters:
+  Environment:
+    Description: The environment type (dev, prod, staging, etc.)
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+      - staging
+    Default: dev
+  
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.micro
+  
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access
+    Type: AWS::EC2::KeyPair::KeyName
+
+  DBUsername:
+    Description: The database admin username
+    Type: String
+    Default: admin
+  
+  DBPassword:
+    Description: The database admin password
+    Type: String
+    NoEcho: true
+
+  DBInstanceClass:
+    Description: The RDS instance class
+    Type: String
+    Default: db.t2.micro
+
+  AllocatedStorage:
+    Description: RDS storage in GB
+    Type: Number
+    Default: 20
+
+Resources:
+
+ 
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-vpc"
+
+  
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-public-subnet"
+
+  
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-private-subnet"
+
+  
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-public-route-table"
+
+  
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP and SSH access
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      SubnetId: !Ref PublicSubnet
+      ImageId: ami-0b69ea66ff7391e80  
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-ec2-instance"
+
+  
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable MySQL access
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+  
+  
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: MySQL
+      AllocatedStorage: !Ref AllocatedStorage
+      DBName: mydatabase
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      MultiAZ: false
+
+  
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS
+      SubnetIds:
+        - !Ref PrivateSubnet
+        - !Ref PublicSubnet
+
+  
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Environment}-static-files"
+
+  
+  CloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/ec2/${Environment}/app-logs"
+      RetentionInDays: 7
+
+Outputs:
+  InstanceID:
+    Description: The EC2 instance ID
+    Value: !Ref EC2Instance
+  RDSInstanceEndpoint:
+    Description: The RDS instance endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+  S3BucketName:
+    Description: The name of the S3 bucket
+    Value: !Ref S3Bucket
